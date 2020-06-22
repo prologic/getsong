@@ -8,6 +8,7 @@ require (
 	github.com/rylio/ytdl v0.6.3
 	github.com/schollz/logger v1.2.0
 	github.com/schollz/progressbar/v2 v2.15.0
+	github.com/schollz/progressbar/v3 v3.3.4
 	github.com/stretchr/testify v1.4.0
 	golang.org/x/text v0.3.3 // indirect
 )

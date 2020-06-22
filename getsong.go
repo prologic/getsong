@@ -25,7 +25,7 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/rylio/ytdl"
 	log "github.com/schollz/logger"
-	"github.com/schollz/progressbar/v2"
+	"github.com/schollz/progressbar/v3"
 )
 
 const CHUNK_SIZE = 524288
@@ -330,10 +330,9 @@ func DownloadFromYouTube(downloadedFilename string, downloadURL string) (err err
 			}
 			defer resp.Body.Close()
 			if it == 0 && OptionShowProgressBar {
-				bar := progressbar.NewOptions64(resp.ContentLength,
-					progressbar.OptionSetDescription("Downlaoding '"+strings.Split(downloadedFilename, ".")[0]+"'"),
-					progressbar.OptionSetBytes64(resp.ContentLength),
-					progressbar.OptionClearOnFinish(),
+				bar := progressbar.DefaultBytes(
+					resp.ContentLength,
+					"Downlaoding '"+strings.Split(downloadedFilename, ".")[0]+"'",
 				)
 				out = io.MultiWriter(out, bar)
 			}
@@ -640,7 +639,10 @@ func getFfmpegBinary() (locationToBinary string, err error) {
 	defer resp.Body.Close()
 
 	fmt.Println("Downloading ffmpeg...")
-	bar := progressbar.NewOptions64(resp.ContentLength, progressbar.OptionSetBytes64(resp.ContentLength))
+	bar := progressbar.DefaultBytes(
+		resp.ContentLength,
+		"downloading",
+	)
 	out = io.MultiWriter(out, bar)
 	_, err = io.Copy(out, resp.Body)
 	saveFile.Close()
