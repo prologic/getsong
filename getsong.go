@@ -22,10 +22,9 @@ import (
 
 	"github.com/bogem/id3v2"
 	"github.com/pkg/errors"
-	"github.com/rs/zerolog"
 	"github.com/rylio/ytdl"
-	log "github.com/schollz/logger"
 	"github.com/schollz/progressbar/v3"
+	log "github.com/sirupsen/logrus"
 )
 
 const CHUNK_SIZE = 524288
@@ -34,14 +33,12 @@ var ffmpegBinary string
 var OptionShowProgressBar bool
 
 func init() {
-	log.SetLevel("info")
 	var err error
 	ffmpegBinary, err = getFfmpegBinary()
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
-	zerolog.SetGlobalLevel(zerolog.ErrorLevel)
 }
 
 // Options allow you to set the artist, title and duration to find the right song.
@@ -63,9 +60,9 @@ func GetSong(title string, artist string, option ...Options) (savedFilename stri
 		options = option[0]
 	}
 	if options.Debug {
-		log.SetLevel("debug")
+		log.SetLevel(log.DebugLevel)
 	} else {
-		log.SetLevel("info")
+		log.SetLevel(log.InfoLevel)
 	}
 	OptionShowProgressBar = options.ShowProgress
 
