@@ -786,15 +786,6 @@ func SetID3Tags(fname, artist, title, yt string) (err error) {
 	tag.SetArtist(artist)
 	tag.SetTitle(title)
 
-	// Set comment frame.
-	comment := id3v2.CommentFrame{
-		Encoding:    id3v2.EncodingUTF8,
-		Language:    "eng",
-		Description: "YouTube ID",
-		Text:        yt,
-	}
-	tag.AddCommentFrame(comment)
-
 	// Write it to file.
 	err = tag.Save()
 	tag.Close()
