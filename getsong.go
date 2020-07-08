@@ -50,11 +50,53 @@ type Options struct {
 	Filename      string
 }
 
-// GetSong requires passing in the options which requires at least a title.
+// GetSong requires passing in a video url.
+func GetSong(url string, option ...Options) (savedFilename string, err error) {
+	var options Options
+	if len(option) > 0 {
+		options = option[0]
+	}
+	if options.Debug {
+		log.SetLevel(log.DebugLevel)
+	} else {
+		log.SetLevel(log.InfoLevel)
+	}
+	OptionShowProgressBar = options.ShowProgress
+
+	ctx := context.Background()
+	info, err := ytdl.GetVideoInfo(ctx, url)
+	if err != nil {
+		err = errors.Wrap(err, "could not get video info")
+		return
+	}
+
+	youtubeID := info.ID
+	savedFilename = sanitizeFileName(info.Title)
+
+	if !options.DoNotDownload {
+		var fname string
+		log.Debugf("trying to download 'https://www.youtube.com/watch?v=%s'", youtubeID)
+		fname, err = downloadYouTube(youtubeID, savedFilename)
+		if err != nil {
+			err = errors.Wrap(err, "could not download video")
+			return
+		}
+		err = ConvertToMp3(fname)
+		if err != nil {
+			err = errors.Wrap(err, "could not convert video")
+			return
+		}
+	}
+
+	savedFilename += ".mp3"
+	return
+}
+
+// SearchSong requires passing in the options which requires at least a title.
 // If an Artist is provided, it will save it as Artist - Title.mp3
 // You can also pass in a duration, and it will try to find a video that
 // is within 10 seconds of that duration.
-func GetSong(title string, artist string, option ...Options) (savedFilename string, err error) {
+func SearchSong(title string, artist string, option ...Options) (savedFilename string, err error) {
 	var options Options
 	if len(option) > 0 {
 		options = option[0]
