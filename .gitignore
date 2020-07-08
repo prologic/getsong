@@ -3,3 +3,4 @@
 *.mp3
 
 /getsong
+/cmd/getsong/getsong
