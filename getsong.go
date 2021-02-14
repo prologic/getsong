@@ -21,8 +21,8 @@ import (
 	"time"
 
 	"github.com/bogem/id3v2"
+	"github.com/kkdai/youtube/v2"
 	"github.com/pkg/errors"
-	"github.com/rylio/ytdl"
 	"github.com/schollz/progressbar/v3"
 	log "github.com/sirupsen/logrus"
 )
@@ -64,14 +64,15 @@ func GetSong(url string, option ...Options) (savedFilename string, err error) {
 	OptionShowProgressBar = options.ShowProgress
 
 	ctx := context.Background()
-	info, err := ytdl.GetVideoInfo(ctx, url)
+	client := youtube.Client{}
+	video, err := client.GetVideoContext(ctx, url)
 	if err != nil {
 		err = errors.Wrap(err, "could not get video info")
 		return
 	}
 
-	youtubeID := info.ID
-	savedFilename = sanitizeFileName(info.Title)
+	youtubeID := video.ID
+	savedFilename = sanitizeFileName(video.Title)
 
 	if !options.DoNotDownload {
 		var fname string
@@ -175,6 +176,7 @@ TryAgain:
 
 // FFmpegConvertToMp3 uses ffmpeg to convert to mp3
 func ConvertToMp3(filename string) (err error) {
+	fmt.Printf("ConvertToMp3() filename: %s\n", filename)
 	filenameWithoutExtension := strings.Replace(filename, filepath.Ext(filename), "", 1)
 	if OptionShowProgressBar {
 		fmt.Print(filenameWithoutExtension)
@@ -229,7 +231,9 @@ func ConvertToMp3(filename string) (err error) {
 			nextIsDuration = true
 		}
 	}
-	bar.Finish()
+	if bar != nil {
+		bar.Finish()
+	}
 
 	err = cmd.Wait()
 	if err != nil {
@@ -263,45 +267,34 @@ func ParseDurationString(s string) (milliseconds int64) {
 
 // downloadYouTube downloads a youtube video and saves using the filename. Returns the filename with the extension.
 func downloadYouTube(youtubeID string, filename string) (downloadedFilename string, err error) {
-	client := ytdl.Client{
-		HTTPClient: http.DefaultClient,
-	}
+	client := youtube.Client{}
 	for i := 0; i < 5; i++ {
-		info, err := client.GetVideoInfo(context.Background(), youtubeID)
+		video, err := client.GetVideo(youtubeID)
 		if err != nil {
 			err = fmt.Errorf("Unable to fetch video info: %s", err.Error())
 			log.Error(err)
 			return "", err
 		}
-		bestQuality := 0
-		var format *ytdl.Format
-		for _, f := range info.Formats {
-			if f.VideoEncoding == "" {
-				if f.AudioBitrate > bestQuality {
-					bestQuality = f.AudioBitrate
-					format = f
-				}
-			}
+
+		format, audioFormatFound := findAudioFormat(video.Formats)
+		if !audioFormatFound {
+			return "", fmt.Errorf("No audio available")
 		}
-		if bestQuality == 0 {
-			err = fmt.Errorf("No audio available")
-			return "", err
-		}
+
 		log.Debugf("trying %d time", i)
-		downloadURL, err := client.GetDownloadURL(context.Background(), info, format)
-		downloadURLString := downloadURL.String()
+		downloadURLString, err := client.GetStreamURLContext(context.Background(), video, format)
 		// temp fix for the paramter youtube wants sometimes
 		// see https://github.com/ytdl-org/youtube-dl/pull/18927
 		if i > 0 {
 			downloadURLString = strings.Replace(downloadURLString, "signature=", "sig=", -1)
 		}
-		log.Debugf("downloading %s", downloadURL)
+		log.Debugf("downloading %s", downloadURLString)
 		if err != nil {
 			err = fmt.Errorf("Unable to get download url: %s", err.Error())
 			log.Error(err)
 			return "", err
 		}
-		downloadedFilename = fmt.Sprintf("%s.%s", filename, format.Extension)
+		downloadedFilename = fmt.Sprintf("%s.mp4", filename)
 
 		err = DownloadFromYouTube(downloadedFilename, downloadURLString)
 		if err != nil && err.Error() == "no content" {
@@ -310,6 +303,30 @@ func downloadYouTube(youtubeID string, filename string) (downloadedFilename stri
 		}
 	}
 	return
+}
+
+func findAudioFormat(formats youtube.FormatList) (*youtube.Format, bool) {
+	if format, found := filterFormatListByMime(formats, "audio/mp4"); found {
+		log.Debugf("audio_format_found: %q", format)
+		return format, true
+
+	} else if format, found := filterFormatListByMime(formats, "mp4"); found {
+		log.Debugf("mp4 format found: %s", format.URL)
+		return format, false
+	}
+
+	defaultFormat := formats[0]
+	log.Debugf("defau;t  video format: %s", defaultFormat.URL)
+	return &defaultFormat, false
+}
+
+func filterFormatListByMime(formats youtube.FormatList, query string) (*youtube.Format, bool) {
+	for _, format := range formats {
+		if strings.ContainsAny(format.MimeType, query) {
+			return &format, true
+		}
+	}
+	return nil, false
 }
 
 // DownloadFromYouTube will use the download URL to get it in parallel and
@@ -323,7 +340,7 @@ func DownloadFromYouTube(downloadedFilename string, downloadURL string) (err err
 	}
 	log.Debugf("total length: %d", respHead.ContentLength)
 	contentLength := int(respHead.ContentLength)
-	if contentLength > 15000000 {
+	if contentLength > 25000000 {
 		err = fmt.Errorf("content is to long: %d", contentLength)
 		return
 	} else if contentLength == 0 {

@@ -1,6 +1,7 @@
 *~
 *.bak
 *.mp3
+*.mp4
 
 /getsong
 /cmd/getsong/getsong
